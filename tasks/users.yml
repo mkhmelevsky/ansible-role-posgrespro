@@ -1,0 +1,26 @@
+---
+# file: tasks/users.yml
+
+- name: Manage {{ postgresql_daemon }} users
+  become: True
+  become_user: "{{ postgresql_admin_user }}"
+  block:
+    - name: "{{ postgresql_daemon }} | Ensure service is running"
+      service:
+        name: "{{ postgresql_service_name }}"
+        state: started
+
+    - name: "Make sure that the users are present"
+      postgresql_user:
+        name: "{{ item.name }}"
+        password: "{{ item.password | default(omit) }}"
+        encrypted: "{{ item.encrypted | default(omit) }}"
+        port: "{{ postgresql_port }}"
+        login_unix_socket: "{{ postgresql_unix_socket_directories[0] }}"
+        state: present
+        login_user: "{{ postgresql_admin_user }}"
+      loop: '{{ postgresql_users }}'
+      # no_log: True
+      when: postgresql_users | length > 0
+
+...

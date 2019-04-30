@@ -1,0 +1,60 @@
+---
+# file: tasks/extensions-RedHat.yml
+
+- name: PostgreSQL | Install extensions
+  become: True
+  block:
+    - name: Make sure the postgres contrib extensions are installed
+      yum:
+        name: "{{ postgresql_ext_contrib_package }}"
+        state: present
+        update_cache: True
+      register: task_result
+      retries: 3
+      delay: 2
+      until: task_result is succeeded
+      when: postgresql_ext_install_contrib
+      notify:
+        - restart postgresql
+
+    - name: Make sure the server-side implementation of python - plpython extensions are installed
+      yum:
+        name: "{{ postgresql_ext_plpython_package }}"
+        state: present
+        update_cache: True
+      register: task_result
+      retries: 3
+      delay: 2
+      until: task_result is succeeded
+      when: postgresql_ext_install_plpython
+      notify:
+        - restart postgresql
+
+    - name: Make sure the server-side implementation of perl - plperl extensions are installed
+      yum:
+        name: "{{ postgresql_ext_plperl_package }}"
+        state: present
+        update_cache: True
+      register: task_result
+      retries: 3
+      delay: 2
+      until: task_result is succeeded
+      when: postgresql_ext_install_plperl
+      notify:
+        - restart postgresql
+
+    - name: Make sure the server-side implementation of TCL - pltcl extensions are installed
+      yum:
+        name: "{{ postgresql_ext_pltcl_package }}"
+        state: present
+        update_cache: True
+      register: task_result
+      retries: 3
+      delay: 2
+      until: task_result is succeeded
+      when: postgresql_ext_install_pltcl
+      notify:
+        - restart postgresql
+
+
+...

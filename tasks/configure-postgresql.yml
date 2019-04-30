@@ -1,0 +1,157 @@
+---
+# file: tasks/configure-postgresql.yml
+
+- name: Perform the initial configuration of PostgreSQL
+  become: True
+  block:
+    - name: PostgreSQL | Drop the data directory | RedHat
+      file:
+        path: "{{ postgresql_data_directory }}"
+        state: absent
+      register: pgdata_dir_remove
+      when: ansible_os_family == "RedHat" and postgresql_cluster_reset
+
+    - name: PostgreSQL | Make sure the postgres data directory exists
+      file:
+        path: "{{ postgresql_data_directory }}"
+        owner: "{{ postgresql_system_user }}"
+        group: "{{ postgresql_system_group }}"
+        state: directory
+        mode: 0700
+      register: pgdata_dir_exist
+
+    - name: PostgreSQL | Ensure the locale is generated | Debian
+      locale_gen: name="{{ postgresql_locale }}" state=present
+      when: ansible_os_family == "Debian"
+
+    - name: PostgreSQL | Ensure the locale is generated | RedHat
+      command: >
+        localedef -c -i {{ postgresql_locale_parts[0] }} -f {{ postgresql_locale_parts[1] }}
+        {{ postgresql_locale }}
+      changed_when: False
+      when: ansible_os_family == "RedHat"
+
+    - name: PostgreSQL | Check whether the postgres data directory is initialized
+      stat:
+        path: "{{ postgresql_data_directory }}/PG_VERSION"
+      when: ansible_os_family == "RedHat" and not postgresql_cluster_reset
+      register: pgdata_dir_initialized
+
+    - name: PostgreSQL | Initialize the database | RedHat
+      command: >
+        {{ postgresql_bin_directory }}/initdb -D {{ postgresql_data_directory }}
+        --locale={{ postgresql_locale }} --encoding={{ postgresql_encoding }}
+      become: True
+      become_user: "{{ postgresql_system_user }}"
+      when: ansible_os_family == "RedHat" and ( postgresql_cluster_reset or pgdata_dir_exist.changed or
+            not pgdata_dir_initialized.stat.exists )
+      register: task_result
+      retries: 3
+      delay: 2
+      until: task_result is succeeded
+
+    - name: PostgreSQL | Ensure configuration directory exists
+      file:
+        path: "{{ postgresql_conf_directory }}"
+        owner: "{{ postgresql_system_user }}"
+        group: "{{ postgresql_system_group }}"
+        mode: 0750
+        state: directory
+      when: postgresql_conf_directory != postgresql_data_directory
+
+    - name: PostgreSQL | Update configuration - pt. 1 (pg_hba.conf)
+      template:
+        src: pg_hba.conf.j2
+        dest: "{{ postgresql_conf_directory }}/pg_hba.conf"
+        owner: "{{ postgresql_system_user }}"
+        group: "{{ postgresql_system_group }}"
+        mode: 0640
+      register: postgresql_configuration_pt1
+
+    - name: PostgreSQL | Update configuration - pt. 2 (postgresql.conf)
+      template:
+        src: "postgresql.conf-{{ postgresql_version }}.j2"
+        # if using pgtune, save the template to ".untuned"
+        dest: "{{ postgresql_conf_directory }}/postgresql.conf{% if postgresql_pgtune %}.untuned{% endif %}"
+        owner: "{{ postgresql_system_user }}"
+        group: "{{ postgresql_system_group }}"
+        mode: 0640
+      register: postgresql_configuration_pt2
+
+    - name: PostgreSQL | Update configuration - pt. 3 (pgtune)
+      become: true
+      become_user: "{{ postgresql_system_user }}"
+      shell: |
+        set -e
+        TMPDIR=$(mktemp -d)
+        pgtune --input-config=postgresql.conf.untuned\
+              --output-config=$TMPDIR/postgresql.conf\
+              {% if postgresql_pgtune_memory %}--memory {{ postgresql_pgtune_memory | int }}{% endif %}\
+              --type {{ postgresql_pgtune_type | quote }}\
+              {% if postgresql_pgtune_connections %}--connections {{ postgresql_pgtune_connections | int }}{% endif %}\
+        # Compare the current config with the one produced by pgtune (ignoring comments/blanks)
+        if diff --ignore-blank-lines \
+            <(sed -e 's/#.*//' postgresql.conf) \
+            <(sed -e 's/#.*//' $TMPDIR/postgresql.conf)
+        then
+          echo '_OK_'
+        else
+          cp $TMPDIR/postgresql.conf postgresql.conf
+        fi
+        # Cleanup
+        rm $TMPDIR/postgresql.conf
+        rmdir $TMPDIR
+      args:
+        chdir: "{{ postgresql_conf_directory }}"
+        executable: "/bin/bash"
+      when: postgresql_pgtune
+      register: postgresql_configuration_pt3
+      changed_when: "'_OK_' not in postgresql_configuration_pt3.stdout"
+
+    - name: PostgreSQL | Create folder for additional configuration files
+      file:
+        name: "{{ postgresql_conf_directory }}/conf.d"
+        state: directory
+        owner: "{{ postgresql_system_user }}"
+        group: "{{ postgresql_system_group }}"
+        mode: 0755
+
+    - name: Postgres Pro | Ensure the PGDATA environment variable file exists | RedHat 7
+      template:
+        src: postgrespro-etc-default.j2
+        dest: "/etc/default/postgrespro-std-11"
+      when: ansible_os_family == "RedHat" and ansible_distribution_major_version == "7" and postgresql_daemon == "postgrespro"
+
+    # - name: Postgres Pro | Ensure the systemd directory for Postgres Pro exists | RedHat 7
+    #   file:
+    #     name: "/etc/systemd/system/postgrespro-std-{{ postgresql_version }}.service.d"
+    #     state: directory
+    #     mode: 0755
+    #   when: ansible_os_family == "RedHat" and ansible_distribution_major_version == "7" and postgresql_daemon == "postgrespro"
+
+    # - name: Postgres Pro | Use the custom systemd file when starting the Postgres Pro service | RedHat 7
+    #   template:
+    #     src: postgres-pro-std.service.custom.j2
+    #     dest: "/etc/systemd/system/postgrespro-std-{{ postgresql_version }}.service.d/custom.conf"
+    #   when: ansible_os_family == "RedHat" and ansible_distribution_major_version == "7" and postgresql_daemon == "postgrespro"
+    #   register: postgresql_systemd_custom_conf
+
+    - name: PostgreSQL | Ensure the pid directory for PostgreSQL exists
+      file:
+        name: "{{ postgresql_pid_directory }}"
+        state: directory
+        owner: "{{ postgresql_system_user }}"
+        group: "{{ postgresql_system_group }}"
+        mode: u=rwX,g=rwXs,o=rx
+
+    - name: PostgreSQL | Restart PostgreSQL
+      service:
+        name: "{{ postgresql_service_name }}"
+        state: restarted
+      when: postgresql_configuration_pt1.changed or postgresql_configuration_pt2.changed or postgresql_configuration_pt3.changed
+      register: task_result
+      retries: 2
+      delay: 5
+      until: task_result is succeeded
+
+...

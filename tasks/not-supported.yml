@@ -1,0 +1,6 @@
+---
+- name: Fail if platform is not supported
+  fail:
+    msg: >-
+      This role doesn't support installation "{{ postgresql_daemon }}" on "{{ ansible_distribution }}" platform.
+...

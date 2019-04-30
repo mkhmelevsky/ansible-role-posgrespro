@@ -1,0 +1,39 @@
+---
+dependencies: []
+
+galaxy_info:
+  role_name: "postgrespro"
+  author: "Max Khmelevsky <max.khmelevsky@yandex.ru>"
+  description: PostgreSQL / Postgres Pro Std server for RHEL/CentOS
+  company: ""
+
+  license: Apache
+
+  platforms:
+    - name: EL
+      versions:
+        - 6
+        - 7
+    - name: CentOS
+      versions:
+        - 6
+        - 7
+
+  versions_postgresql:
+    - name: postgresql
+      versions:
+        - 9.6
+    - name: postgrespro
+      versions:
+        - 11
+
+  galaxy_tags:
+    - database
+    - postgresql
+    - postgrespro
+    - db
+    - sql
+
+  min_ansible_version: 2.5
+
+...

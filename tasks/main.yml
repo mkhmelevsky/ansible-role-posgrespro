@@ -1,0 +1,58 @@
+---
+# Basic configuration variables from more specific to less
+- name: Include platform specific variables
+  include_vars: '{{ platform_vars }}'
+  with_first_found:
+    - "{{ postgresql_daemon }}-{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+    - "{{ postgresql_daemon }}-{{ ansible_os_family }}-{{ ansible_distribution_major_version }}.yml"
+    - "{{ postgresql_daemon }}-{{ ansible_distribution }}.yml"
+    - "{{ postgresql_daemon }}-{{ ansible_os_family }}.yml"
+  loop_control:
+    loop_var: platform_vars
+  tags: [postgresql, always]
+
+# Install PostgreSQL
+- name: Install PostgreSQL
+  include_tasks: "{{ platform }}"
+  with_first_found:
+    - "setup-{{ postgresql_daemon }}-{{ ansible_distribution }}.yml"
+    - "setup-{{ postgresql_daemon }}-{{ ansible_os_family }}.yml"
+    - "setup-{{ ansible_os_family }}.yml"
+    - "not-supported.yml"
+  loop_control:
+    loop_var: platform
+  tags: [postgresql, postgresql-install]
+
+# Install extensions
+- name: Install {{ postgresql_daemon }} extensions
+  include_tasks: "{{ platform }}"
+  with_first_found:
+    - "extentions-{{ ansible_os_family }}.yml"
+    - "not-supported.yml"
+  loop_control:
+    loop_var: platform
+  tags: [postgresql, postgresql-extensions]
+
+# Configure PostgreSQL
+- name: Configure PostgreSQL / Postgres Pro
+  include_tasks: configure-postgresql.yml
+  tags: [postgresql, postgresql-configure]
+
+# Add users
+- name: Create users
+  include_tasks: users.yml
+  tags: [postgresql, postgresql-users]
+
+# Add databases
+- name: Create databases
+  include_tasks: databases.yml
+  tags: [postgresql, postgresql-databases]
+
+# User's privileges
+- name: Add privileges to users
+  include_tasks: users_privileges.yml
+  tags: [postgresql, postgresql-users]
+
+# TODO: Add monit protection
+
+...

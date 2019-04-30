@@ -1,0 +1,44 @@
+---
+# Variables for PostgreSQL running under RHEL/CentOS 6
+
+# Yum settings
+postgresql_version_terse: "{{ postgresql_version | replace('.', '') }}"
+postgresql_repo_key_url: http://1c.postgrespro.ru/keys/GPG-KEY-POSTGRESPRO-1C
+postgresql_yum_repository_base_url: "http://1c.postgrespro.ru/rpm"
+
+postgresql_yum_repository_url: "{{ postgresql_yum_repository_base_url }}/{{ postgresql_version }}/{{ ansible_distribution | lower }}-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}/"
+
+postgresql_client_packages:
+  - "python-psycopg2"
+  - "python-pycurl"
+  - "glibc-common"
+  - "postgresql{{ postgresql_version_terse }}-libs"
+
+postgresql_packages:
+  - "postgresql{{ postgresql_version_terse }}-server"
+  - "postgresql{{ postgresql_version_terse }}"
+
+# Using a different cluster name could cause problems with SELinux.
+# See /usr/lib/systemd/system/postgresql-*.service
+postgresql_cluster_name: "data"
+postgresql_service_name: "postgresql-{{ postgresql_version }}"
+
+postgresql_varlib_directory_name: "pgsql"
+
+postgresql_conf_directory: "/var/lib/pgsql/{{ postgresql_version }}/{{ postgresql_cluster_name }}"
+
+# Used to execute initdb
+postgresql_bin_directory: "/usr/pgsql-{{ postgresql_version }}/bin"
+
+postgresql_unix_socket_directories:
+  - "{{ postgresql_pid_directory }}"
+  - /tmp
+
+# Extensions
+postgresql_ext_contrib_package: "postgresql{{ postgresql_version_terse }}-contrib"
+postgresql_ext_plpython_package: "postgresql{{ postgresql_version_terse }}-plpython"
+postgresql_ext_plperl_package: "postgresql{{ postgresql_version_terse }}-plperl"
+postgresql_ext_pltcl_package: "postgresql{{ postgresql_version_terse }}-pltcl"
+
+
+...

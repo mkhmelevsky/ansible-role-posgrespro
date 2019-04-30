@@ -1,0 +1,7 @@
+---
+# file: handlers/main.yml
+
+- name: restart postgresql
+  import_tasks: postgresql_restart.yml
+
+...

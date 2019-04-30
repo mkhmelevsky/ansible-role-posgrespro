@@ -1,0 +1,56 @@
+---
+# file: tasks/setup-RedHat.yml
+
+# Install PostgreSQL / Postgres Pro on RHEL / CentOS
+
+- name: Add repository and install packages
+  become: True
+  block:
+    - name: PostgreSQL | Make sure the CA certificates are available
+      yum:
+        name: ca-certificates
+        state: present
+
+    - name: Add PostgreSQL "{{ postgresql_daemon }}-{{ postgresql_version }}" repository file
+      yum_repository:
+        name: 'postgrespro-1c'
+        description: Postgres Pro 1C repo
+        baseurl: '{{ postgresql_yum_repository_url }}'
+        gpgcakey: '{{ postgresql_repo_key_url }}'
+        gpgcheck: True
+      register: task_result
+      retries: 3
+      delay: 2
+      until: task_result is succeeded
+
+    - name: Add GPG key
+      rpm_key:
+        state: present
+        key: '{{ postgresql_repo_key_url }}'
+      register: task_result
+      retries: 3
+      delay: 2
+      until: task_result is succeeded
+
+    - name: PostgreSQL | Install requirements
+      yum:
+        name: '{{ postgresql_client_packages }}'
+        state: present
+        update_cache: True
+      register: task_result
+      retries: 3
+      delay: 2
+      until: task_result is succeeded
+
+    - name: PostgreSQL | Install {{ postgresql_daemon }}-{{ postgresql_version }} packages
+      yum:
+        name: '{{ postgresql_packages }}'
+        state: present
+        #environment: "{{ postgresql_env }}"
+        update_cache: True
+      register: task_result
+      retries: 3
+      delay: 2
+      until: task_result is succeeded
+
+...

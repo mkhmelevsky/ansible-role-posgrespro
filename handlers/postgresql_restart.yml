@@ -1,0 +1,30 @@
+---
+# file: handlers/postgresql_restart.yml
+
+- name: Stop and start PostgreSQL service
+  become: True
+  block:
+    - name: Stop PostgreSQL
+      service:
+        name: '{{ postgresql_service_name }}'
+        state: stopped
+
+    - name: Wait until the lock file is removed
+      wait_for:
+        path: "{{ postgresql_pid_directory }}/.s.PGSQL.{{ postgresql_port }}.lock"
+        state: absent
+
+    - name: Start PostgreSQL
+      service:
+        name: '{{ postgresql_service_name }}'
+        state: started
+
+- name: Wait for service to be ready
+  wait_for:
+    port: '{{ postgresql_port }}'
+    host: '{{ postgresql_bind_address }}'
+    connect_timeout: 3
+    delay: 3
+    timeout: 30
+
+...
